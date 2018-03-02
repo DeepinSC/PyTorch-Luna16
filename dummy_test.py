@@ -24,7 +24,7 @@ for epoch in range(1000):
     loss = criterion(output, train_y)
     loss.backward()
     optimizer.step()
-    if epoch%100==0:
+    if epoch % 100 == 0:
         print("%s MSE Loss: %s", epoch, loss)
 
 
