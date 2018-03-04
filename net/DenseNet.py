@@ -3,6 +3,7 @@ from torch.autograd import Variable
 import torch.nn as nn
 import torch.nn.functional as F
 import torchvision
+from collections import OrderedDict
 
 
 class Bottleneck(nn.Module):
@@ -65,3 +66,39 @@ class DenseNet(nn.Module):
     def __init__(self, growth_rate=32, block_config=(6, 12, 24, 16),
                  num_init_features=64, bn_size=4, drop_rate=0, num_classes=1000):
         super(DenseNet, self).__init__()
+
+        # First Convolution
+        self.features = nn.Sequential(OrderedDict([
+            ('conv0', nn.Conv2d(3, num_init_features, kernel_size=7, stride=2)),
+            ('bn0', nn.BatchNorm2d(num_init_features)),
+            ('relu0', nn.ReLU(inplace=True)),
+            ('maxpool0', nn.MaxPool2d(kernel_size=3, stride=2, padding=1))
+        ]))
+
+        # DenseLayer
+        num_features = num_init_features
+        for i in range(len(block_config)):
+            denseblock = DenseLayer(num_init_features/2,
+                                    block_size=block_config[i],
+                                    bn_size=bn_size,
+                                    growth_rate=growth_rate,
+                                    drop_rate=drop_rate)
+            self.features.add_module('denseblock%d' % (i + 1), denseblock)
+            num_features += growth_rate
+
+            if i != len(block_config) - 1:
+                transition = Transition(num_features, num_features // 2)
+                self.features.add_module('transition%d' % (i + 1), transition)
+                num_features = num_features // 2
+
+        # Final batch norm
+        self.features.add_module('norm5', nn.BatchNorm2d(num_features))
+        # Linear layer
+        self.classifier = nn.Linear(num_features, num_classes)
+
+    def forward(self, x):
+        features = self.features(x)
+        out = F.relu(features, inplace=True)
+        out = F.avg_pool2d(out, kernel_size=7, stride=1).view(features.size(0), -1)
+        out = self.classifier(out)
+        return out
