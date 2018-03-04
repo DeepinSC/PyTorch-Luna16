@@ -4,6 +4,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torchvision
 
+
 class Bottleneck(nn.Module):
     def __init__(self, in_plane, growth_rate, bn_size, drop_rate):
         super(Bottleneck, self).__init__()
@@ -21,6 +22,31 @@ class Bottleneck(nn.Module):
         # connect out and x to [out,x]
         out = torch.cat([out, x], 1)
         return out
+
+
+class Transition(nn.Module):
+    def __init__(self, in_plane, out_plane):
+        super(Transition, self).__init__()
+        self.bn1 = nn.BatchNorm2d(in_plane)
+        self.conv1 = nn.Conv2d(in_plane, out_plane, kernel_size=1, bias=False)
+
+    def forward(self, x):
+        out = self.conv1(F.relu(self.bn1(x)))
+        out = F.avg_pool2d(out, 2)
+        return out
+
+
+class DenseLayer(nn.Module):
+    def __init__(self, in_plane, block_size, bn_size, growth_rate, drop_rate):
+        super(DenseLayer, self).__init__()
+        self.layers = []
+        for i in range(block_size):
+            self.layers.append(Bottleneck(in_plane + i * growth_rate, growth_rate, bn_size, drop_rate))
+
+    def forward(self, x):
+        for i in range(len(self.layers)):
+            x = self.layers[i](x)
+        return x
 
 
 class DenseNet(nn.Module):
