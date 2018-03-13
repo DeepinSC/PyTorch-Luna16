@@ -68,7 +68,7 @@ Returns uint16 version
 # Getting list of image files
 luna_path = "../../data/luna16data/"
 luna_subset_path = luna_path+"subset0/"
-output_path = "../../out/"
+output_path = "../../data/out/"
 file_list = glob(luna_subset_path+"*.mhd")
 
 

@@ -5,13 +5,13 @@ from sklearn.cluster import KMeans
 from skimage.transform import resize
 from glob import glob
 
-working_path = "/home/jonathan/tutorial/"
-file_list=glob(working_path+"images_*.npy")
+working_path = "../../data/out/"
+file_list = glob(working_path+"images_*.npy")
 
 for img_file in file_list:
     # I ran into an error when using Kmean on np.float16, so I'm using np.float64 here
     imgs_to_process = np.load(img_file).astype(np.float64) 
-    print ("on image", img_file)
+    print("on image", img_file)
     for i in range(len(imgs_to_process)):
         img = imgs_to_process[i]
         #Standardize the pixel values
@@ -27,8 +27,8 @@ for img_file in file_list:
         min = np.min(img)
         # To improve threshold finding, I'm moving the 
         # underflow and overflow on the pixel spectrum
-        img[img==max]=mean
-        img[img==min]=mean
+        img[img == max] = mean
+        img[img == min] = mean
         #
         # Using Kmeans to separate foreground (radio-opaque tissue)
         # and background (radio transparent tissue ie lungs)
@@ -77,7 +77,7 @@ for img_file in file_list:
             mask = mask + np.where(labels==N,1,0)
         mask = morphology.dilation(mask,np.ones([10,10])) # one last dilation
         imgs_to_process[i] = mask
-    np.save(img_file.replace("images","lungmask"),imgs_to_process)
+    np.save(img_file.replace("images", "lungmask"),imgs_to_process)
     
 
 #
@@ -90,9 +90,9 @@ out_images = []      #final set of images
 out_nodemasks = []   #final set of nodemasks
 for fname in file_list:
     print ("working on file ", fname)
-    imgs_to_process = np.load(fname.replace("lungmask","images"))
+    imgs_to_process = np.load(fname.replace("lungmask", "images"))
     masks = np.load(fname)
-    node_masks = np.load(fname.replace("lungmask","masks"))
+    node_masks = np.load(fname.replace("lungmask", "masks"))
     for i in range(len(imgs_to_process)):
         mask = masks[i]
         node_mask = node_masks[i]
@@ -102,16 +102,16 @@ for fname in file_list:
         #
         # renormalizing the masked image (in the mask region)
         #
-        new_mean = np.mean(img[mask>0])  
-        new_std = np.std(img[mask>0])
+        new_mean = np.mean(img[mask > 0])
+        new_std = np.std(img[mask > 0])
         #
         #  Pulling the background color up to the lower end
         #  of the pixel range for the lungs
         #
         old_min = np.min(img)       # background color
-        img[img==old_min] = new_mean-1.2*new_std   # resetting backgound color
-        img = img-new_mean
-        img = img/new_std
+        img[img == old_min] = new_mean-1.2*new_std   # resetting backgound color
+        img = img - new_mean
+        img = img / new_std
         #make image bounding box  (min row, min col, max row, max col)
         labels = measure.label(mask)
         regions = measure.regionprops(labels)
@@ -143,8 +143,8 @@ for fname in file_list:
         # (there's probably an skimage command that can do this in one line)
         # 
         img = img[min_row:max_row,min_col:max_col]
-        mask =  mask[min_row:max_row,min_col:max_col]
-        if max_row-min_row <5 or max_col-min_col<5:  # skipping all images with no god regions
+        mask = mask[min_row:max_row,min_col:max_col]
+        if max_row-min_row < 5 or max_col-min_col< 5:  # skipping all images with no god regions
             pass
         else:
             # moving range to -1 to 1 to accomodate the resize function
@@ -153,7 +153,7 @@ for fname in file_list:
             min = np.min(img)
             max = np.max(img)
             img = img/(max-min)
-            new_img = resize(img,[512,512])
+            new_img = resize(img, [512,512])
             new_node_mask = resize(node_mask[min_row:max_row,min_col:max_col],[512,512])
             out_images.append(new_img)
             out_nodemasks.append(new_node_mask)
@@ -162,17 +162,17 @@ num_images = len(out_images)
 #
 #  Writing out images and masks as 1 channel arrays for input into network
 #
-final_images = np.ndarray([num_images,1,512,512],dtype=np.float32)
-final_masks = np.ndarray([num_images,1,512,512],dtype=np.float32)
+final_images = np.ndarray([num_images, 1, 512, 512], dtype=np.float32)
+final_masks = np.ndarray([num_images, 1, 512, 512], dtype=np.float32)
 for i in range(num_images):
-    final_images[i,0] = out_images[i]
-    final_masks[i,0] = out_nodemasks[i]
+    final_images[i, 0] = out_images[i]
+    final_masks[i, 0] = out_nodemasks[i]
 
-rand_i = np.random.choice(range(num_images),size=num_images,replace=False)
-test_i = int(0.2*num_images)
-np.save(working_path+"trainImages.npy",final_images[rand_i[test_i:]])
-np.save(working_path+"trainMasks.npy",final_masks[rand_i[test_i:]])
-np.save(working_path+"testImages.npy",final_images[rand_i[:test_i]])
-np.save(working_path+"testMasks.npy",final_masks[rand_i[:test_i]])
+rand_i = np.random.choice(range(num_images), size=num_images, replace=False)
+test_i = int(0.2 * num_images)
+np.save(working_path+"trainImages.npy", final_images[rand_i[test_i:]])
+np.save(working_path+"trainMasks.npy", final_masks[rand_i[test_i:]])
+np.save(working_path+"testImages.npy", final_images[rand_i[:test_i]])
+np.save(working_path+"testMasks.npy", final_masks[rand_i[:test_i]])
 
 

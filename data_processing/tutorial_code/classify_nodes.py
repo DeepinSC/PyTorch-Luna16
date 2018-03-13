@@ -12,12 +12,14 @@ from sklearn.ensemble import RandomForestClassifier as RF
 from glob import glob
 import xgboost as xgb
 
+
 def getRegionFromMap(slice_npy):
     thr = np.where(slice_npy > np.mean(slice_npy), 0., 1.0)
     label_image = label(thr)
     labels = label_image.astype(int)
     regions = regionprops(labels)
     return regions
+
 
 def getRegionMetricRow(fname = "nodules.npy"):
     # fname, numpy array of dimension [#slices, 1, 512, 512] containing the images
@@ -82,10 +84,10 @@ def createFeatureDataset(nodfiles=None):
     # the training set is the output masks from the unet segmentation
     truthdata = pickle.load(open("truthdict.pkl",'r'))
     numfeatures = 9
-    feature_array = np.zeros((len(nodfiles),numfeatures))
+    feature_array = np.zeros((len(nodfiles), numfeatures))
     truth_metric = np.zeros((len(nodfiles)))
     
-    for i,nodfile in enumerate(nodfiles):
+    for i, nodfile in enumerate(nodfiles):
         patID = nodfile.split("_")[2]
         truth_metric[i] = truthdata[int(patID)]
         feature_array[i] = getRegionMetricRow(nodfile)
