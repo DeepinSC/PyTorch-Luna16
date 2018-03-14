@@ -4,6 +4,7 @@ import torch.nn as nn
 import torch.optim as optim
 import numpy as np
 from models.densenet import DenseNet121
+from segment_models.lenet import LeNet
 
 from keras import backend as K
 smooth = 1.
@@ -27,6 +28,7 @@ def dice_coef_loss(y_true, y_pred):
 
 # read files
 
+
 train_data_path = './data/out/trainImages.npy'
 train_mask_path = './data/out/trainMasks.npy'
 test_data_path = './data/out/testImages.npy'
@@ -37,21 +39,25 @@ train_mask = np.load(train_mask_path).astype(np.float32)
 train_x = Variable(torch.from_numpy(train_data))
 train_y = Variable(torch.from_numpy(train_mask))
 
-densenet = DenseNet121()
-densenet.zero_grad()
+# net = DenseNet121()
+net = LeNet(train_x.shape)
+net.zero_grad()
+print('** Init finished **')
 
-output = densenet(train_x)
+output = net(train_x)
+print('** First output finished **')
 loss = dice_coef_loss(output, train_y)
 print(loss)
 
-optimizer = optim.SGD(densenet.parameters(), lr=0.01)
+optimizer = optim.SGD(net.parameters(), lr=0.01)
 
+'''
 for epoch in range(500):
     optimizer.zero_grad()
-    output = densenet(train_x)
+    output = net(train_x)
     loss = dice_coef_loss(output, train_y)
     loss.backward()
     optimizer.step()
     if epoch % 100 == 0:
         print("%s MSE Loss: %s", epoch, loss)
-
+'''
