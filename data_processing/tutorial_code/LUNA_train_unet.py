@@ -7,13 +7,15 @@ from keras.optimizers import Adam
 from keras.optimizers import SGD
 from keras.callbacks import ModelCheckpoint, LearningRateScheduler
 from keras import backend as K
+import tensorflow as tf
 
-working_path = "/home/jonathan/tutorial/"
+working_path = "../../data/out/"
 
 K.set_image_dim_ordering('th')  # Theano dimension ordering in this code
+# K.set_session(tf.Session(config=tf.ConfigProto(device_count={'/gpu':0})))
 
-img_rows = 512
-img_cols = 512
+img_rows = 256 #512
+img_cols = 256 #512
 
 smooth = 1.
 
@@ -37,7 +39,7 @@ def dice_coef_loss(y_true, y_pred):
 
 
 def get_unet():
-    inputs = Input((1,img_rows, img_cols))
+    inputs = Input((1, img_rows, img_cols))
     conv1 = Convolution2D(32, 3, 3, activation='relu', border_mode='same')(inputs)
     conv1 = Convolution2D(32, 3, 3, activation='relu', border_mode='same')(conv1)
     pool1 = MaxPooling2D(pool_size=(2, 2))(conv1)
@@ -82,16 +84,22 @@ def get_unet():
     return model
 
 
-def train_and_predict(use_existing):
+def train_and_predict(use_existing,downsample=False):
     print('-'*30)
     print('Loading and preprocessing train data...')
     print('-'*30)
-    imgs_train = np.load(working_path+"trainImages.npy").astype(np.float32)
-    imgs_mask_train = np.load(working_path+"trainMasks.npy").astype(np.float32)
+    imgs_train = np.load(working_path+"trainImages.npy").astype(np.float64)
+    imgs_mask_train = np.load(working_path+"trainMasks.npy").astype(np.float64)
 
-    imgs_test = np.load(working_path+"testImages.npy").astype(np.float32)
-    imgs_mask_test_true = np.load(working_path+"testMasks.npy").astype(np.float32)
-    
+    imgs_test = np.load(working_path+"testImages.npy").astype(np.float64)
+    imgs_mask_test_true = np.load(working_path+"testMasks.npy").astype(np.float64)
+
+    if downsample:
+        imgs_train = np.resize(imgs_train, [imgs_train.shape[0], imgs_train.shape[1], 256, 256])
+        imgs_mask_train = np.resize(imgs_mask_train, [imgs_mask_train.shape[0], imgs_mask_train.shape[1], 256, 256])
+        imgs_test = np.resize(imgs_test, [imgs_test.shape[0], imgs_test.shape[1], 256, 256])
+        imgs_mask_test_true = np.resize(imgs_mask_test_true, [imgs_mask_test_true.shape[0], imgs_mask_test_true.shape[1], 256, 256])
+
     mean = np.mean(imgs_train)  # mean for data centering
     std = np.std(imgs_train)  # std for data normalization
 
@@ -114,7 +122,7 @@ def train_and_predict(use_existing):
     # The final results for this tutorial were produced using a multi-GPU
     # machine using TitanX's.
     # For a home GPU computation benchmark, on my home set up with a GTX970 
-    # I was able to run 20 epochs with a training set size of 320 and 
+    # I was able to run 20 epochs with a training set size of 640 and 
     # batch size of 2 in about an hour. I started getting reseasonable masks 
     # after about 3 hours of training. 
     #
@@ -134,16 +142,19 @@ def train_and_predict(use_existing):
     print('Predicting masks on test data...')
     print('-'*30)
     num_test = len(imgs_test)
-    imgs_mask_test = np.ndarray([num_test,1,512,512],dtype=np.float32)
+    imgs_mask_test = np.ndarray([num_test, 1, 512, 512], dtype=np.float64)
+    if downsample:
+        imgs_mask_test = np.resize(imgs_mask_test, [imgs_mask_test.shape[0], imgs_mask_test.shape[1], 256, 256])
+
     for i in range(num_test):
         imgs_mask_test[i] = model.predict([imgs_test[i:i+1]], verbose=0)[0]
     np.save('masksTestPredicted.npy', imgs_mask_test)
     mean = 0.0
     for i in range(num_test):
-        mean+=dice_coef_np(imgs_mask_test_true[i,0], imgs_mask_test[i,0])
-    mean/=num_test
-    print("Mean Dice Coeff : ",mean)
+        mean += dice_coef_np(imgs_mask_test_true[i,0], imgs_mask_test[i,0])
+    mean /= num_test
+    print("Mean Dice Coeff : ", mean)
 
 
 if __name__ == '__main__':
-    train_and_predict(False)
+    train_and_predict(False, downsample=True)
