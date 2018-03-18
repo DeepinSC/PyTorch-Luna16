@@ -17,6 +17,9 @@ img_cols = 512
 
 smooth = 1.
 
+downsample = True
+img_rows = 128
+img_cols = 128
 
 def dice_coef(y_true, y_pred):
     y_true_f = K.flatten(y_true)
@@ -36,8 +39,9 @@ def dice_coef_loss(y_true, y_pred):
     return -dice_coef(y_true, y_pred)
 
 
+
 # How to use net?
-def train_and_predict(use_existing):
+def train_and_predict(use_existing=False):
     print('-'*30)
     print('Loading and preprocessing train data...')
     print('-'*30)
@@ -46,7 +50,13 @@ def train_and_predict(use_existing):
 
     imgs_test = np.load(working_path+"testImages.npy").astype(np.float32)
     imgs_mask_test_true = np.load(working_path+"testMasks.npy").astype(np.float32)
-    
+
+    if downsample:
+        imgs_train = np.resize(imgs_train, [imgs_train.shape[0], imgs_train.shape[1], img_rows, img_cols])
+        imgs_mask_train = np.resize(imgs_mask_train, [imgs_mask_train.shape[0], imgs_mask_train.shape[1], img_rows, img_cols])
+        imgs_test = np.resize(imgs_test, [imgs_test.shape[0], imgs_test.shape[1], img_rows, img_cols])
+        imgs_mask_test_true = np.resize(imgs_mask_test_true, [imgs_mask_test_true.shape[0], imgs_mask_test_true.shape[1], img_rows, img_cols])
+
     mean = np.mean(imgs_train)  # mean for data centering
     std = np.std(imgs_train)  # std for data normalization
 
@@ -57,10 +67,7 @@ def train_and_predict(use_existing):
     print('Creating and compiling model...')
     print('-'*30)
     # model = unet()
-    model = DenseNetFCN(
-        input_shape=(1, img_rows, img_cols),
-        nb_dense_block=int(math.log(img_rows, 2)),
-    )
+    model = DenseNetFCN(input_shape=(1, img_rows, img_cols),nb_dense_block=int(math.log(img_rows, 2)),)
     # Saving weights to unet.hdf5 at checkpoints
     model_checkpoint = ModelCheckpoint('unet.hdf5', monitor='loss', save_best_only=True)
     #
@@ -94,6 +101,8 @@ def train_and_predict(use_existing):
     print('-'*30)
     num_test = len(imgs_test)
     imgs_mask_test = np.ndarray([num_test,1,512,512],dtype=np.float32)
+    if downsample:
+        imgs_mask_test = np.resize(imgs_mask_test, [imgs_mask_test.shape[0], imgs_mask_test.shape[1], img_rows, img_cols])
     for i in range(num_test):
         imgs_mask_test[i] = model.predict([imgs_test[i:i+1]], verbose=0)[0]
     np.save('masksTestPredicted.npy', imgs_mask_test)

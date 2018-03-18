@@ -7,6 +7,11 @@ from keras import backend as K
 
 img_rows = 512
 img_cols = 512
+
+# downsample
+img_rows = 128
+img_cols = 128
+
 smooth = 1.
 
 
