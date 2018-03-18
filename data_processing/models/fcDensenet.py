@@ -53,6 +53,126 @@ def dice_coef_loss(y_true, y_pred):
     return -dice_coef(y_true, y_pred)
 
 
+def DenseNetFCN(input_shape, nb_dense_block=5, growth_rate=16, nb_layers_per_block=4,
+                reduction=0.0, dropout_rate=0.0, weight_decay=1e-4, init_conv_filters=48,
+                include_top=True, weights=None, input_tensor=None, classes=1, activation='softmax',
+                upsampling_conv=128, upsampling_type='deconv'):
+    '''Instantiate the DenseNet FCN architecture.
+        Note that when using TensorFlow,
+        for best performance you should set
+        `image_data_format='channels_last'` in your Keras config
+        at ~/.keras/keras.json.
+        # Arguments
+            nb_dense_block: number of dense blocks to add to end (generally = 3)
+            growth_rate: number of filters to add per dense block
+            nb_layers_per_block: number of layers in each dense block.
+                Can be a positive integer or a list.
+                If positive integer, a set number of layers per dense block.
+                If list, nb_layer is used as provided. Note that list size must
+                be (nb_dense_block + 1)
+            reduction: reduction factor of transition blocks.
+                Note : reduction value is inverted to compute compression.
+            dropout_rate: dropout rate
+            init_conv_filters: number of layers in the initial convolution layer
+            include_top: whether to include the fully-connected
+                layer at the top of the network.
+            weights: one of `None` (random initialization) or
+                'cifar10' (pre-training on CIFAR-10)..
+            input_tensor: optional Keras tensor (i.e. output of `layers.Input()`)
+                to use as image input for the model.
+            input_shape: optional shape tuple, only to be specified
+                if `include_top` is False (otherwise the input shape
+                has to be `(32, 32, 3)` (with `channels_last` dim ordering)
+                or `(3, 32, 32)` (with `channels_first` dim ordering).
+                It should have exactly 3 inputs channels,
+                and width and height should be no smaller than 8.
+                E.g. `(200, 200, 3)` would be one valid value.
+            classes: optional number of classes to classify images
+                into, only to be specified if `include_top` is True, and
+                if no `weights` argument is specified.
+            activation: Type of activation at the top layer. Can be one of 'softmax' or 'sigmoid'.
+                Note that if sigmoid is used, classes must be 1.
+            upsampling_conv: number of convolutional layers in upsampling via subpixel convolution
+            upsampling_type: Can be one of 'upsampling', 'deconv' and
+                'subpixel'. Defines type of upsampling algorithm used.
+            batchsize: Fixed batch size. This is a temporary requirement for
+                computation of output shape in the case of Deconvolution2D layers.
+                Parameter will be removed in next iteration of Keras, which infers
+                output shape of deconvolution layers automatically.
+        # Returns
+            A Keras model instance.
+    '''
+
+    if weights not in {None}:
+        raise ValueError('The `weights` argument should be '
+                         '`None` (random initialization) as no '
+                         'model weights are provided.')
+
+    upsampling_type = upsampling_type.lower()
+
+    if upsampling_type not in ['upsampling', 'deconv', 'subpixel']:
+        raise ValueError('Parameter "upsampling_type" must be one of "upsampling", '
+                         '"deconv" or "subpixel".')
+
+    if input_shape is None:
+        raise ValueError('For fully convolutional models, input shape must be supplied.')
+
+    if type(nb_layers_per_block) is not list and nb_dense_block < 1:
+        raise ValueError('Number of dense layers per block must be greater than 1. Argument '
+                         'value was %d.' % (nb_layers_per_block))
+
+    if activation not in ['softmax', 'sigmoid']:
+        raise ValueError('activation must be one of "softmax" or "sigmoid"')
+
+    if activation == 'sigmoid' and classes != 1:
+        raise ValueError('sigmoid activation can only be used when classes = 1')
+
+    # Determine proper input shape
+    min_size = 2 ** nb_dense_block
+
+    if K.image_data_format() == 'channels_first':
+        if input_shape is not None:
+            if ((input_shape[1] is not None and input_shape[1] < min_size) or
+                    (input_shape[2] is not None and input_shape[2] < min_size)):
+                raise ValueError('Input size must be at least ' +
+                                 str(min_size) + 'x' + str(min_size) + ', got '
+                                                                       '`input_shape=' + str(input_shape) + '`')
+        else:
+            input_shape = (classes, None, None)
+    else:
+        if input_shape is not None:
+            if ((input_shape[0] is not None and input_shape[0] < min_size) or
+                    (input_shape[1] is not None and input_shape[1] < min_size)):
+                raise ValueError('Input size must be at least ' +
+                                 str(min_size) + 'x' + str(min_size) + ', got '
+                                                                       '`input_shape=' + str(input_shape) + '`')
+        else:
+            input_shape = (None, None, classes)
+
+    if input_tensor is None:
+        img_input = Input(shape=input_shape)
+    else:
+        if not K.is_keras_tensor(input_tensor):
+            img_input = Input(tensor=input_tensor, shape=input_shape)
+        else:
+            img_input = input_tensor
+
+    x = __create_fcn_dense_net(classes, img_input, include_top, nb_dense_block,
+                               growth_rate, reduction, dropout_rate, weight_decay,
+                               nb_layers_per_block, upsampling_conv, upsampling_type,
+                               init_conv_filters, input_shape, activation)
+
+    # Ensure that the model takes into account
+    # any potential predecessors of `input_tensor`.
+    if input_tensor is not None:
+        inputs = get_source_inputs(input_tensor)
+    else:
+        inputs = img_input
+    # Create model.
+    model = Model(inputs, x, name='fcn-densenet')
+    model.compile(optimizer=Adam(lr=1.0e-5), loss=dice_coef_loss, metrics=[dice_coef])
+    return model
+
 
 def DenseNet(input_shape=None, depth=40, nb_dense_block=3, growth_rate=12, nb_filter=-1, nb_layers_per_block=-1,
              bottleneck=False, reduction=0.0, dropout_rate=0.0, weight_decay=1e-4, subsample_initial_block=False,
@@ -217,127 +337,6 @@ def DenseNet(input_shape=None, depth=40, nb_dense_block=3, growth_rate=12, nb_fi
 
             print("Weights for the model were loaded successfully")
 
-    return model
-
-
-def DenseNetFCN(input_shape, nb_dense_block=5, growth_rate=16, nb_layers_per_block=4,
-                reduction=0.0, dropout_rate=0.0, weight_decay=1e-4, init_conv_filters=48,
-                include_top=True, weights=None, input_tensor=None, classes=1, activation='softmax',
-                upsampling_conv=128, upsampling_type='deconv'):
-    '''Instantiate the DenseNet FCN architecture.
-        Note that when using TensorFlow,
-        for best performance you should set
-        `image_data_format='channels_last'` in your Keras config
-        at ~/.keras/keras.json.
-        # Arguments
-            nb_dense_block: number of dense blocks to add to end (generally = 3)
-            growth_rate: number of filters to add per dense block
-            nb_layers_per_block: number of layers in each dense block.
-                Can be a positive integer or a list.
-                If positive integer, a set number of layers per dense block.
-                If list, nb_layer is used as provided. Note that list size must
-                be (nb_dense_block + 1)
-            reduction: reduction factor of transition blocks.
-                Note : reduction value is inverted to compute compression.
-            dropout_rate: dropout rate
-            init_conv_filters: number of layers in the initial convolution layer
-            include_top: whether to include the fully-connected
-                layer at the top of the network.
-            weights: one of `None` (random initialization) or
-                'cifar10' (pre-training on CIFAR-10)..
-            input_tensor: optional Keras tensor (i.e. output of `layers.Input()`)
-                to use as image input for the model.
-            input_shape: optional shape tuple, only to be specified
-                if `include_top` is False (otherwise the input shape
-                has to be `(32, 32, 3)` (with `channels_last` dim ordering)
-                or `(3, 32, 32)` (with `channels_first` dim ordering).
-                It should have exactly 3 inputs channels,
-                and width and height should be no smaller than 8.
-                E.g. `(200, 200, 3)` would be one valid value.
-            classes: optional number of classes to classify images
-                into, only to be specified if `include_top` is True, and
-                if no `weights` argument is specified.
-            activation: Type of activation at the top layer. Can be one of 'softmax' or 'sigmoid'.
-                Note that if sigmoid is used, classes must be 1.
-            upsampling_conv: number of convolutional layers in upsampling via subpixel convolution
-            upsampling_type: Can be one of 'upsampling', 'deconv' and
-                'subpixel'. Defines type of upsampling algorithm used.
-            batchsize: Fixed batch size. This is a temporary requirement for
-                computation of output shape in the case of Deconvolution2D layers.
-                Parameter will be removed in next iteration of Keras, which infers
-                output shape of deconvolution layers automatically.
-        # Returns
-            A Keras model instance.
-    '''
-
-    if weights not in {None}:
-        raise ValueError('The `weights` argument should be '
-                         '`None` (random initialization) as no '
-                         'model weights are provided.')
-
-    upsampling_type = upsampling_type.lower()
-
-    if upsampling_type not in ['upsampling', 'deconv', 'subpixel']:
-        raise ValueError('Parameter "upsampling_type" must be one of "upsampling", '
-                         '"deconv" or "subpixel".')
-
-    if input_shape is None:
-        raise ValueError('For fully convolutional models, input shape must be supplied.')
-
-    if type(nb_layers_per_block) is not list and nb_dense_block < 1:
-        raise ValueError('Number of dense layers per block must be greater than 1. Argument '
-                         'value was %d.' % (nb_layers_per_block))
-
-    if activation not in ['softmax', 'sigmoid']:
-        raise ValueError('activation must be one of "softmax" or "sigmoid"')
-
-    if activation == 'sigmoid' and classes != 1:
-        raise ValueError('sigmoid activation can only be used when classes = 1')
-
-    # Determine proper input shape
-    min_size = 2 ** nb_dense_block
-
-    if K.image_data_format() == 'channels_first':
-        if input_shape is not None:
-            if ((input_shape[1] is not None and input_shape[1] < min_size) or
-                    (input_shape[2] is not None and input_shape[2] < min_size)):
-                raise ValueError('Input size must be at least ' +
-                                 str(min_size) + 'x' + str(min_size) + ', got '
-                                                                       '`input_shape=' + str(input_shape) + '`')
-        else:
-            input_shape = (classes, None, None)
-    else:
-        if input_shape is not None:
-            if ((input_shape[0] is not None and input_shape[0] < min_size) or
-                    (input_shape[1] is not None and input_shape[1] < min_size)):
-                raise ValueError('Input size must be at least ' +
-                                 str(min_size) + 'x' + str(min_size) + ', got '
-                                                                       '`input_shape=' + str(input_shape) + '`')
-        else:
-            input_shape = (None, None, classes)
-
-    if input_tensor is None:
-        img_input = Input(shape=input_shape)
-    else:
-        if not K.is_keras_tensor(input_tensor):
-            img_input = Input(tensor=input_tensor, shape=input_shape)
-        else:
-            img_input = input_tensor
-
-    x = __create_fcn_dense_net(classes, img_input, include_top, nb_dense_block,
-                               growth_rate, reduction, dropout_rate, weight_decay,
-                               nb_layers_per_block, upsampling_conv, upsampling_type,
-                               init_conv_filters, input_shape, activation)
-
-    # Ensure that the model takes into account
-    # any potential predecessors of `input_tensor`.
-    if input_tensor is not None:
-        inputs = get_source_inputs(input_tensor)
-    else:
-        inputs = img_input
-    # Create model.
-    model = Model(inputs, x, name='fcn-densenet')
-    model.compile(optimizer=Adam(lr=1.0e-5), loss=dice_coef_loss, metrics=[dice_coef])
     return model
 
 

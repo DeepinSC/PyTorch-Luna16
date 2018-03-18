@@ -105,3 +105,4 @@ ENV/
 .idea
 
 data/
+*.hdf5
