@@ -8,13 +8,8 @@ Written by Waleed Abdulla
 """
 
 import os
-import sys
-import glob
 import random
-import math
 import datetime
-import itertools
-import json
 import re
 import logging
 from collections import OrderedDict
@@ -23,19 +18,17 @@ import scipy.misc
 import tensorflow as tf
 import keras
 import keras.backend as K
-import keras.layers as KL
 from keras.layers import Input
-from keras.layers.core import Dense, Dropout, Activation, Reshape, Lambda
+from keras.layers.core import Dense, Activation, Reshape, Lambda
 from keras.layers.convolutional import Conv2D, Conv2DTranspose, UpSampling2D, ZeroPadding2D
-from keras.layers.pooling import AveragePooling2D, MaxPooling2D
+from keras.layers.pooling import MaxPooling2D
 from keras.layers.normalization import BatchNormalization
 from keras.layers.merge import Add, Concatenate
 from keras.layers.wrappers import TimeDistributed
-import keras.initializers as KI
 import keras.engine as KE
 import keras.models as KM
 
-import data_processing.models.utils as utils
+import data_processing.models.maskrcnn.utils as utils
 
 # Requires TensorFlow 1.3+ and Keras 2.0.8+.
 from distutils.version import LooseVersion

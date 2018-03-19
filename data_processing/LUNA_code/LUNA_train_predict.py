@@ -2,11 +2,10 @@ from __future__ import print_function
 
 import math
 import numpy as np
-from keras.callbacks import ModelCheckpoint, LearningRateScheduler
+from keras.callbacks import ModelCheckpoint
 from keras import backend as K
 
-from data_processing.models.unet import unet
-from data_processing.models.fcDensenet import DenseNetFCN
+from data_processing.models.fcdensenet.fcDensenet import DenseNetFCN
 
 working_path = "../../data/out/"
 

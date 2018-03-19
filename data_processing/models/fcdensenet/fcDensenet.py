@@ -13,16 +13,15 @@ from keras.layers import Input
 from keras.layers.merge import concatenate
 from keras.layers.normalization import BatchNormalization
 from keras.regularizers import l2
-from keras.utils.layer_utils import convert_all_kernels_in_model, convert_dense_weights_data_format
+from keras.utils.layer_utils import convert_all_kernels_in_model
 from keras.utils.data_utils import get_file
 from keras.engine.topology import get_source_inputs
 from keras.applications.imagenet_utils import _obtain_input_shape
-from keras.applications.imagenet_utils import decode_predictions
 import keras.backend as K
 from keras.optimizers import Adam
 import numpy as np
 
-from data_processing.models.subpixel import SubPixelUpscaling
+from data_processing.models.fcdensenet.subpixel import SubPixelUpscaling
 
 
 DENSENET_121_WEIGHTS_PATH = r'https://github.com/titu1994/DenseNet/releases/download/v3.0/DenseNet-BC-121-32.h5'
@@ -770,7 +769,6 @@ def __create_fcn_dense_net(nb_classes, img_input, include_top, nb_dense_block=5,
 
 if __name__ == '__main__':
 
-    from keras.utils.vis_utils import plot_model
     #model = DenseNetFCN((32, 32, 3), growth_rate=16, nb_layers_per_block=[4, 5, 7, 10, 12, 15], upsampling_type='deconv')
     model = DenseNet((32, 32, 3), depth=100, nb_dense_block=3,
                      growth_rate=12, bottleneck=True, reduction=0.5, weights=None)
