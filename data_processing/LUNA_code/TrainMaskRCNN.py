@@ -2,6 +2,7 @@ import numpy as np
 from data_processing.models.maskrcnn.config import Config
 import data_processing.models.maskrcnn.utils as utils
 import data_processing.models.maskrcnn.visualize as visualize
+from data_processing.models.maskrcnn.MaskRCNN import MaskRCNN, load_image_gt,mold_image
 
 
 class NodulesConfig(Config):
@@ -82,16 +83,26 @@ class NodulesDataset(utils.Dataset):
             super(self.__class__).image_reference(self, image_id)
 
 
-
 # Training dataset
-def test_init():
-
+def dataset_init(plot=False, downsample=True):
+    print("** Begin to create Nodule Dataset... **")
     working_path = "../../data/out/"
     imgs_train = np.load(working_path + "trainImages.npy").astype(np.float32)
     imgs_mask_train = np.load(working_path + "trainMasks.npy").astype(np.float32)
 
     imgs_test = np.load(working_path + "testImages.npy").astype(np.float32)
     imgs_mask_test_true = np.load(working_path + "testMasks.npy").astype(np.float32)
+
+    img_rows = 128
+    img_cols = 128
+
+    if downsample:
+        imgs_train = np.resize(imgs_train, [imgs_train.shape[0], img_rows, img_cols, imgs_train.shape[1]])
+        imgs_mask_train = np.resize(imgs_mask_train,
+                                    [imgs_mask_train.shape[0], img_rows, img_cols, imgs_mask_train.shape[1]])
+        imgs_test = np.resize(imgs_test, [imgs_test.shape[0], img_rows, img_cols, imgs_test.shape[1]])
+        imgs_mask_test_true = np.resize(imgs_mask_test_true,
+                                        [imgs_mask_test_true.shape[0], img_rows, img_cols, imgs_mask_test_true.shape[1]])
 
     dataset_train = NodulesDataset()
     dataset_train.load_samples(imgs_train, imgs_mask_train)
@@ -102,13 +113,66 @@ def test_init():
     dataset_val.load_samples(imgs_test, imgs_mask_test_true)
     dataset_val.prepare()
 
-    image_ids = np.random.choice(dataset_train.image_ids, 4)
+    if plot:
+        image_ids = np.random.choice(dataset_train.image_ids, 4)
+        for image_id in image_ids:
+            image = dataset_train.load_image(image_id)*255
+            mask, class_ids = dataset_train.load_mask(image_id)
+            mask = mask * 255
+            visualize.display_top_masks(image, mask, class_ids, dataset_train.class_names)
+    print("** Nodule Dataset Ready **")
+    return dataset_train, dataset_val
+
+
+def train_test_model(dataset_train, dataset_val, model_config, out_dir = 'data_processing/models/out/'):
+    model = MaskRCNN(mode="training", config=model_config, model_dir=out_dir)
+    # pre-train
+    model.train(dataset_train,dataset_val,
+                learning_rate=model_config.LEARNING_RATE,
+                epochs=1,
+                layers='heads')
+    # fine-tune
+    model.train(dataset_train, dataset_val,
+                learning_rate=model_config.LEARNING_RATE / 10,
+                epochs=2,
+                layers="all")
+
+
+    # test
+    class InferenceConfig(NodulesConfig):
+        GPU_COUNT = 1
+        IMAGES_PER_GPU = 1
+
+    inference_config = InferenceConfig()
+
+    image_ids = np.random.choice(dataset_val.image_ids, 10)
+    APs = []
+    Precisions = []
+    Recalls = []
     for image_id in image_ids:
-        image = dataset_train.load_image(image_id)*255
-        mask, class_ids = dataset_train.load_mask(image_id)
-        mask = mask * 255
-        visualize.display_top_masks(image, mask, class_ids, dataset_train.class_names)
+        # Load image and ground truth data
+        image, image_meta, gt_class_id, gt_bbox, gt_mask = \
+            load_image_gt(dataset_val, inference_config,
+                          image_id, use_mini_mask=False)
+        molded_images = np.expand_dims(mold_image(image, inference_config), 0)
+        # Run object detection
+        results = model.detect([image], verbose=0)
+        r = results[0]
+        # Compute AP
+        AP, precisions, recalls, overlaps = \
+            utils.compute_ap(gt_bbox, gt_class_id, gt_mask,
+                             r["rois"], r["class_ids"], r["scores"], r['masks'])
+        APs.append(AP)
+        Precisions.append(precisions)
+        Recalls.append(recalls)
+
+    print("mAP: ", np.mean(APs))
+    print("mPrecision: ", np.mean(Precisions))
+    print("mRecall: ", np.mean(Recalls))
 
 
-test_init()
+config = NodulesConfig()
+train, val = dataset_init()
+train_test_model(train, val, config)
+
 
