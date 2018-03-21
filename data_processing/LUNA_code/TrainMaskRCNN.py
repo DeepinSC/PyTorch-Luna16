@@ -145,6 +145,7 @@ def train_test_model(dataset_train, dataset_val, model_config, out_dir = 'data_p
 
     inference_config = InferenceConfig()
 
+    # TODO: 这里应该用测试集
     image_ids = np.random.choice(dataset_val.image_ids, 10)
     APs = []
     Precisions = []

@@ -1,8 +1,9 @@
 from __future__ import print_function
 
 import math
+from random import randint
 import numpy as np
-from keras.callbacks import ModelCheckpoint
+from keras.callbacks import ModelCheckpoint,TensorBoard
 from keras import backend as K
 
 from data_processing.models.fcdensenet.fcDensenet import DenseNetFCN
@@ -19,6 +20,7 @@ smooth = 1.
 downsample = True
 img_rows = 128
 img_cols = 128
+
 
 def dice_coef(y_true, y_pred):
     y_true_f = K.flatten(y_true)
@@ -37,6 +39,14 @@ def dice_coef_np(y_true,y_pred):
 def dice_coef_loss(y_true, y_pred):
     return -dice_coef(y_true, y_pred)
 
+
+# use generator to reduce the pressure of GPU
+def data_generator(data, targets, batch_size):
+    ylen = len(targets)
+    loopcount = ylen // batch_size
+    while (True):
+        i = randint(0, loopcount)
+        yield data[i * batch_size:(i + 1) * batch_size], targets[i * batch_size:(i + 1) * batch_size]
 
 
 # How to use net?
@@ -86,8 +96,19 @@ def train_and_predict(use_existing=False):
     print('-'*30)
     print('Fitting model...')
     print('-'*30)
-    model.fit(imgs_train, imgs_mask_train, batch_size=2, epochs=20, verbose=1, shuffle=True,
-              callbacks=[model_checkpoint])
+    
+    # model.fit(imgs_train, imgs_mask_train, batch_size=2, epochs=20, verbose=1, shuffle=True,
+    # callbacks=[model_checkpoint])
+
+    # 使用generator降低内存，TODO：载入val而不是test
+    train_generator = data_generator(imgs_train, imgs_mask_train, batch_size=2)
+    model.fit_generator(train_generator,
+                        steps_per_epoch=100,
+                        epochs=20,
+                        max_queue_size=100,
+                        validation_data=(imgs_test, imgs_mask_test_true),
+                        validation_steps=5,
+                        callbacks=[model_checkpoint])
 
     # loading best weights from training session
     print('-'*30)
@@ -107,7 +128,7 @@ def train_and_predict(use_existing=False):
     np.save('masksTestPredicted.npy', imgs_mask_test)
     mean = 0.0
     for i in range(num_test):
-        mean += dice_coef_np(imgs_mask_test_true[i,0], imgs_mask_test[i,0])
+        mean += dice_coef_np(imgs_mask_test_true[i, 0], imgs_mask_test[i, 0])
     mean /= num_test
     print("Mean Dice Coeff : ",mean)
 

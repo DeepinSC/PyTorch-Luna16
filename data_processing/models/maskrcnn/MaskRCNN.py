@@ -78,7 +78,7 @@ def identity_block(input_tensor, kernel_size, filters, stage, block,
     """The identity_block is the block that has no conv layer at shortcut
     # Arguments
         input_tensor: input tensor
-        kernel_size: defualt 3, the kernel size of middle conv layer at main path
+        kernel_size: default 3, the kernel size of middle conv layer at main path
         filters: list of integers, the nb_filters of 3 conv layer at main path
         stage: integer, current stage label, used for generating layer names
         block: 'a','b'..., current block label, used for generating layer names
@@ -939,7 +939,7 @@ def build_fpn_mask_graph(rois, feature_maps,
 
     rois: [batch, num_rois, (y1, x1, y2, x2)] Proposal boxes in normalized
           coordinates.
-    feature_maps: List of feature maps from diffent layers of the pyramid,
+    feature_maps: List of feature maps from different layers of the pyramid,
                   [P2, P3, P4, P5]. Each has a different resolution.
     image_shape: [height, width, depth]
     pool_size: The width of the square feature map generated from ROI Pooling.
