@@ -65,8 +65,8 @@ def get_pixels_hu(slices):
 first_patient = load_scan(INPUT_FOLDER + patients[0])
 first_patient_pixels = get_pixels_hu(first_patient)
 plt.hist(first_patient_pixels.flatten(), bins=80, color='g')
-plt.xlabel("亨氏单位 (HU)")
-plt.ylabel("频率")
+plt.xlabel("Hounsfield (HU)")
+plt.ylabel("Frequency")
 plt.show()
 
 # Show some slice in the middle
