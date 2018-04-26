@@ -105,3 +105,6 @@ ENV/
 .idea
 
 data/
+*.hdf5
+*.DS_STORE
+data_processing/LUNA_code/data_processing/models/out/
